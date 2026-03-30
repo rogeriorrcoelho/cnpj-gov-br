@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import re
 
+#%%
 # funções para criar banco, tabela, carregar dados, etc
 def criar_banco(nome_banco: str, schema: str):
     """
@@ -50,8 +51,9 @@ con = criar_banco(
     nome_banco="/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/cnpj.duckdb",
     schema="raw"                      # raw, staging, analytics
 )
-
+#%%
 # Configurar DuckDB para usar todo o hardware disponível
+#con = duckdb.connect('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/cnpj.duckdb')
 con.execute("PRAGMA threads=4")
 con.execute("PRAGMA memory_limit='12GB'")
 con.execute("PRAGMA temp_directory='/tmp'")
@@ -120,12 +122,132 @@ criar_tabela(
 )
 
 
+# Estrutura da tabela socios
+colunas_tabela_socios = {
+    "cnpj_basico": "VARCHAR",
+    "identificador_socio": "VARCHAR",
+    "nome_socio": "VARCHAR",
+    "cnpj_cpf_socio": "VARCHAR",
+    "qualificacao_socio": "VARCHAR",
+    "data_entrada_sociedade": "VARCHAR",
+    "pais": "VARCHAR",
+    "representante_legal": "VARCHAR",
+    "nome_representante": "VARCHAR",
+    "qualificacao_representante_legal": "VARCHAR",
+    "faixa_etaria": "VARCHAR"
+}
+
+# Criar tabela
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="socios",
+    colunas=colunas_tabela_socios
+)
+
+colunas_tabela_cnae = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="cnae",
+    colunas=colunas_tabela_cnae
+)
+
+colunas_tabela_motivos = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="motivos",
+    colunas=colunas_tabela_motivos
+)
+
+colunas_tabela_municipios = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="municipios",
+    colunas=colunas_tabela_municipios
+)
+
+colunas_tabela_natureza_juridica = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="natureza_juridica",
+    colunas=colunas_tabela_natureza_juridica
+)
+
+colunas_tabela_pais = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="pais",
+    colunas=colunas_tabela_pais
+)
+
+colunas_tabela_qualificacoes = {
+    "codigo": "VARCHAR",
+    "descricao": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="qualificacoes",
+    colunas=colunas_tabela_qualificacoes
+)
+
+
+colunas_tabela_simples = {
+    "cnpj_basico": "VARCHAR",
+    "opcao_simples": "VARCHAR",
+    "data_opcao_simples": "VARCHAR",
+    "data_exclusao_simples": "VARCHAR",
+    "opcao_mei": "VARCHAR",
+    "data_opcao_mei": "VARCHAR",
+    "data_exclusao_mei": "VARCHAR"
+}
+
+criar_tabela(
+    con=con,
+    schema="raw",
+    tabela="simples",
+    colunas=colunas_tabela_simples
+)
+
 #%%
 
 # Conferir estrutura criada
 print(con.execute("DESCRIBE raw.empresas").fetchdf())
-# Conferir estrutura criada
 print(con.execute("DESCRIBE raw.estabelecimentos").fetchdf())
+print(con.execute("DESCRIBE raw.socios").fetchdf())
+print(con.execute("DESCRIBE raw.cnae").fetchdf())
+print(con.execute("DESCRIBE raw.motivos").fetchdf())
+print(con.execute("DESCRIBE raw.municipios").fetchdf())
+print(con.execute("DESCRIBE raw.natureza_juridica").fetchdf())
+print(con.execute("DESCRIBE raw.pais").fetchdf())
+print(con.execute("DESCRIBE raw.qualificacoes").fetchdf())
+print(con.execute("DESCRIBE raw.simples").fetchdf())
 
 #%%
 # Converte os arquivos CSV para UTF-8 usando o iconv
@@ -181,6 +303,7 @@ def converter_csv_para_utf8(diretorio_origem, diretorio_destino=None):
 dir_csv = "/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv"
 dir_csv_utf8 = "/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8"
 
+#%%
 # converte os arquivos
 converter_csv_para_utf8(
     dir_csv,
@@ -224,18 +347,33 @@ def carregar_arquivos_csv(con, pattern, schema, tabela, delimiter=";", header=Fa
 
 
 #%%
+# Ingestão dos arquivos CSV para o banco duckdb 
+# carregar_arquivos_csv(
+#     con,
+#     pattern=padrao,
+#     schema="raw",
+#     tabela="/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/estabelecimento_utf8_*.CSV"
+# )
+
+
+#%%
 # PIPELINE completo para as cargas dos arquivos CSV
 cargas = [
     ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/empresa_utf8_*.CSV", "raw", "empresas"),
-    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/estabelecimento_utf8_*.CSV", "raw", "estabelecimentos")
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/estabelecimento_utf8_*.CSV", "raw", "estabelecimentos"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/SOCIO_utf8_*.CSV", "raw", "socios"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/CNAE_utf8.CSV", "raw", "cnae"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/MOTI_utf8.CSV", "raw", "motivos"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/MUNIC_utf8_*.CSV", "raw", "municipios"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/NATJU_utf8.CSV", "raw", "natureza_juridica"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/PAIS_utf8.CSV", "raw", "pais"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/QUALS_utf8.CSV", "raw", "qualificacoes"),
+    ("/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/csv_utf8/SIMPLES_utf8.CSV", "raw", "simples")
 ]
 
 for pattern, schema, tabela in cargas:
     carregar_arquivos_csv(con, pattern, schema, tabela)
 
-
-
-#%%
 
 # padrão para o DuckDB
 # padrao = f"{dir_csv_utf8}/empresa_utf8_*.CSV"
