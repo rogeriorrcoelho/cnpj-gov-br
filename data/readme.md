@@ -2,7 +2,12 @@
 
 Diretório de armazenamento de arquivos de dados utilizados no projeto.
 Na raiz do diretório data é utilizado um banco de dados local em DuckDB (cnpj.duckdb), responsável por apoiar o processamento e a conversão dos dados.
-Os arquivos aqui presentes **não são versionados pelo Git** (ver `.gitignore`), pois são grandes e podem ser obtidos do portal gov.br 
+Os arquivos aqui presentes **não são versionados pelo Git** (ver `.gitignore`), pois podem ser obtidos do portal gov.br 
+
+---
+
+## Modelo Simplificado dos Dados
+![Modelo MER](../img/MER-CNPJ-GOV-BR.png)
 
 ---
 
