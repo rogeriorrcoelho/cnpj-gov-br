@@ -37,3 +37,4 @@ Thumbs.db
 # Dados
 data/
 !data/README.md
+!data/cnpj-metadados.pdf
