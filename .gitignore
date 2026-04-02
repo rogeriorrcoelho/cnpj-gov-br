@@ -38,3 +38,12 @@ Thumbs.db
 data/
 !data/README.md
 !data/cnpj-metadados.pdf
+
+# Banco de dados DuckDB
+*.duckdb
+
+# Pastas locais
+old/
+
+# (opcional) notebooks exploratórios
+notebooks/
