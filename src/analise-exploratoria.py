@@ -214,9 +214,90 @@ plot.figure.show()
 sql = """SELECT 
     *
 FROM vw_empresas_por_estado
+ORDER BY total DESC
 ;"""
 con.execute(sql)   
 
 print(con.fetchall())
 
+# %%
+# gráffico de barras por estado
+plot = con.execute(sql).df().plot.bar(x='estado', y='total', legend=False, figsize=(10, 6))
+plot.set_xlabel('Estado')
+plot.set_ylabel('Frequência')
+plot.set_title('Frequência de Empresas por Estado')
+plot.set_xticklabels(plot.get_xticklabels(), rotation=45, ha='right')
+plot.grid(axis='y')
+plot.figure.tight_layout()
+plot.figure.show() 
+# %%
+# Análise de empresas por estado (agrupando por situacao_cadastral)
+# A consulta agrupa os dados fazendo um join entre a tabela de estabelecimentos e a tabela de empresas 
+# para obter o número de empresas por situação cadastral. Depois agrupa por UF e situação cadastral, 
+# e ordena pelo total de empresas.
+sql = """SELECT 
+    c.uf AS estado,
+    c.situacao_cadastral,
+    COUNT(*)/1000000 AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+JOIN read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/empresas.parquet') AS e
+    ON c.cnpj_basico = e.cnpj_basico
+GROUP BY c.uf, c.situacao_cadastral
+ORDER BY total DESC, c.uf, c.situacao_cadastral;"""
+con.execute(sql)
+print(con.fetchall())
+
+# %%
+# gráfico de barras por total, estado e situação cadastral
+plot = con.execute(sql).df().pivot(index='estado', columns='situacao_cadastral', values='total').plot.bar(stacked=True, figsize=(10, 6))
+plot.set_xlabel('Estado')
+plot.set_ylabel('Frequência')
+plot.set_title('Frequência de Estabelecimentos de Empresas por Estado e Situação Cadastral (Em milhões)')
+plot.set_xticklabels(plot.get_xticklabels(), rotation=45, ha='right')
+plot.legend(title='Situação Cadastral', bbox_to_anchor=(1.05,   1), loc='upper left')
+plot.grid(axis='y')
+plot.figure.tight_layout()
+plot.figure.show()
+# %%
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Executa a query
+con.execute(sql)
+data = con.fetchall()  # já vem no formato: [(uf, codigo, total), ...]
+
+# Preservar ordem de aparição
+ufs = []
+codigos = []
+for uf, codigo, _ in data:
+    if uf not in ufs:
+        ufs.append(uf)
+    if codigo not in codigos:
+        codigos.append(codigo)
+
+# Montar estrutura agrupada
+grouped = {uf: {} for uf in ufs}
+for uf, codigo, total in data:
+    grouped[uf][codigo] = total
+
+# Posições no eixo X
+x = np.arange(len(ufs))
+width = 0.8 / len(codigos)
+
+plt.figure()
+
+# Plot: mesma cor por código
+for i, codigo in enumerate(codigos):
+    values = [grouped[uf].get(codigo, 0) for uf in ufs]
+    plt.bar(x + i * width, values, width=width, label=codigo)
+
+# Ajustes visuais
+plt.xlabel("UF")
+plt.ylabel("Total")
+plt.title("Totais por UF (barras lado a lado por código)")
+plt.xticks(x + width * (len(codigos) - 1) / 2, ufs)
+plt.legend(title="Código")
+
+plt.tight_layout()
+plt.show()
 # %%
