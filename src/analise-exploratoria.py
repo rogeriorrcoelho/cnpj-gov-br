@@ -301,3 +301,403 @@ plt.legend(title="Código")
 plt.tight_layout()
 plt.show()
 # %%
+# Análise de quantas empresas foram abertas por ano (agrupando por ano de abertura) por uf
+
+sql = """SELECT 
+    c.uf AS estado,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+GROUP BY 
+    c.uf, 
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY c.uf, ano_abertura;"""
+con.execute(sql)
+print(con.fetchall())
+
+# %%
+# gráfico de barras por total, estado e ano de abertura
+plot = con.execute(sql).df().pivot(index='estado', columns='ano_abertura', values='total').plot.bar(stacked=True, figsize=(10, 6))
+plot.set_xlabel('Estado')
+plot.set_ylabel('Frequência')
+plot.set_title('Frequência de Estabelecimentos de Empresas por Estado e Ano de Abertura')
+plot.set_xticklabels(plot.get_xticklabels(), rotation=45, ha='right')
+plot.legend(title='Ano de Abertura', bbox_to_anchor=(1.05, 1), loc='upper left')
+plot.grid(axis='y')
+plot.figure.tight_layout()
+plot.figure.show()
+# %%
+# gráfico de linha para o estado de SP com total por ano de abertura
+sql = """SELECT 
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+WHERE c.uf = 'SP'
+GROUP BY 
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY ano_abertura;"""
+con.execute(sql)
+print(con.fetchall())  
+
+# plot = con.execute(sql).df().plot.line(x='ano_abertura', y='total', legend=False, figsize=(10, 6))
+plot = con.execute(sql).df().plot(
+    x='ano_abertura',
+    y='total',
+    marker='o',  # pontos reais
+    legend=False,
+    figsize=(10, 6)
+)
+plot.set_xlabel('Ano de Abertura')
+plot.set_ylabel('Frequência')
+plot.set_title('Frequência de Estabelecimentos de Empresas em SP por Ano de Abertura')
+# 🔥 remove notação científica
+plot.ticklabel_format(style='plain', axis='y')
+plot.grid()
+plot.figure.tight_layout()
+plot.figure.show()
+# %%
+sql = """SELECT 
+    c.uf AS estado,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+WHERE 
+    c.data_inicio_atividade IS NOT NULL
+    AND LENGTH(c.data_inicio_atividade) = 8
+GROUP BY 
+    c.uf,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY c.uf, ano_abertura;"""
+con.execute(sql)
+print(con.fetchall())  
+
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+# Carrega tudo uma vez
+df = con.execute(sql).df()
+
+# Loop por estado
+for uf in df['estado'].unique():
+    df_uf = df[df['estado'] == uf]
+
+    plot = df_uf.plot(
+        x='ano_abertura',
+        y='total',
+        marker='o',
+        legend=False,
+        figsize=(10, 6)
+    )
+
+    plot.set_xlabel('Ano de Abertura')
+    plot.set_ylabel('Frequência')
+    plot.set_title(f'Frequência de Estabelecimentos por Ano - {uf}')
+
+    # remove notação científica
+    plot.ticklabel_format(style='plain', axis='y')
+
+    # formatação opcional (milhar)
+    plot.yaxis.set_major_formatter(
+        ticker.StrMethodFormatter('{x:,.0f}')
+    )
+
+    plot.grid()
+    plot.figure.tight_layout()
+    plot.figure.show()
+
+# %%
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+
+# Carrega os dados (mesma query ajustada)
+df = con.execute(sql).df()
+
+plt.figure(figsize=(12, 7))
+
+top_ufs = (
+    df.groupby('estado')['total']
+    .sum()
+    .nlargest(5)
+    .index
+)
+
+for uf in top_ufs:
+    df_uf = df[df['estado'] == uf]
+    
+    plt.plot(
+        df_uf['ano_abertura'],
+        df_uf['total'],
+        marker='o',
+        label=uf
+    )
+
+## Loop para plotar cada UF
+#for uf in df['estado'].unique()[:5]:  # limitar a 5 UFs para visualização
+#    df_uf = df[df['estado'] == uf]
+#    
+#    plt.plot(
+#        df_uf['ano_abertura'],
+#        df_uf['total'],
+#        marker='o',
+#        label=uf
+#    )
+
+# Ajustes
+plt.xlabel('Ano de Abertura')
+plt.ylabel('Frequência')
+plt.title('Frequência de Estabelecimentos por Ano (todas as UFs)')
+
+# legenda com várias colunas (melhora visual)
+plt.legend(title='UF', bbox_to_anchor=(1.05, 1), loc='upper left', ncol=2)
+
+# remove notação científica
+plt.ticklabel_format(style='plain', axis='y')
+
+# formatação de milhar
+plt.gca().yaxis.set_major_formatter(
+    ticker.StrMethodFormatter('{x:,.0f}')
+)
+
+plt.grid()
+plt.tight_layout()
+plt.show()
+# %%
+import pandas as pd
+
+# Top 5 UFs por volume total
+top_ufs = (
+    df.groupby('estado')['total']
+    .sum()
+    .nlargest(5)
+    .index
+)
+
+resultados = []
+
+for uf in top_ufs:
+    df_uf = df[df['estado'] == uf].sort_values('ano_abertura')
+    
+    vi = df_uf.iloc[0]['total']
+    vf = df_uf.iloc[-1]['total']
+    n = df_uf['ano_abertura'].nunique() - 1
+
+    if vi > 0 and n > 0:
+        cagr = (vf / vi) ** (1/n) - 1
+    else:
+        cagr = None
+
+    resultados.append((uf, cagr))
+
+# Exibir
+for uf, taxa in resultados:
+    print(f"{uf}: {taxa:.2%}" if taxa else f"{uf}: N/A")
+# %%
+# Cálculo do CAGR para todas as UFs
+# O CAGR (Compound Annual Growth Rate) é uma medida de crescimento anual composta.
+# Indica a taxa de crescimento média anual de um valor ao longo de um período de tempo.
+# A fórmula do CAGR é:
+# CAGR = (VF / VI)^(1/n) - 1
+# Onde:
+# VF = Valor Final (total de estabelecimentos no último ano)
+# VI = Valor Inicial (total de estabelecimentos no primeiro ano)
+# n = número de períodos (anos) entre o valor inicial e o valor final  
+
+import pandas as pd
+
+resultados = []
+
+for uf in df['estado'].unique():
+    df_uf = df[df['estado'] == uf].sort_values('ano_abertura')
+    
+    # garante que há dados suficientes
+    if len(df_uf) < 2:
+        continue
+
+    vi = df_uf.iloc[0]['total']
+    vf = df_uf.iloc[-1]['total']
+    n = df_uf['ano_abertura'].nunique() - 1
+
+    if vi > 0 and n > 0:
+        cagr = (vf / vi) ** (1/n) - 1
+        resultados.append((uf, cagr))
+
+# transformar em DataFrame para facilitar análise
+df_cagr = pd.DataFrame(resultados, columns=['estado', 'cagr'])
+
+# ordenar do maior crescimento para o menor
+df_cagr = df_cagr.sort_values(by='cagr', ascending=False)
+df_cagr['cagr_%'] = df_cagr['cagr'] * 100
+print(df_cagr)
+
+print(df_cagr.head(5)) # em percentual
+
+print(df_cagr.head(5)) # as que mais cresceram em termos percentuais
+
+print(df_cagr.tail(5)) # as que menos cresceram (ou mais diminuíram) em termos percentuais
+# %%
+# grafico de barras do cagr_% por estado
+plot = df_cagr.plot.bar(x='estado', y='cagr_%', legend=False, figsize=(10, 6))
+plot.set_xlabel('Estado')
+plot.set_ylabel('CAGR (%)')
+plot.set_title('Taxa de Crescimento Anual Composta (CAGR) do Total de Estabelecimentos por Estado')
+plot.set_xticklabels(plot.get_xticklabels(), rotation=45, ha='right')
+plot.grid(axis='y')
+plot.figure.tight_layout()
+plot.figure.show()
+# %%
+# Análise de quantas empresas de cada natureza jurídica foram abertas
+# (agrupando por ano de abertura) por uf
+sql = """SELECT 
+    c.uf AS estado,
+    e.natureza_juridica,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+JOIN read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/empresas.parquet') AS e
+    ON c.cnpj_basico = e.cnpj_basico
+WHERE 
+    c.data_inicio_atividade IS NOT NULL
+    AND LENGTH(c.data_inicio_atividade) = 8
+GROUP BY 
+    c.uf,
+    e.natureza_juridica,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY c.uf, e.natureza_juridica, ano_abertura;"""
+con.execute(sql)
+print(con.fetchall())
+# %%
+# gráfico de barras por total, estado, natureza jurídica e ano de abertura por estado
+plot = con.execute(sql).df().pivot_table(index='ano_abertura', columns=['estado', 'natureza_juridica'], values='total', aggfunc='sum').plot(stacked=True, figsize=(12, 8))
+plot.set_xlabel('Ano de Abertura')
+plot.set_ylabel('Frequência')
+plot.set_title('Frequência de Estabelecimentos por Ano, Estado e Natureza Jurídica')
+plot.legend(title='Estado e Natureza Jurídica', bbox_to_anchor=(1.05, 1), loc='upper left')
+plot.grid()
+plot.figure.tight_layout()
+plot.figure.show() 
+
+# %%
+import matplotlib.pyplot as plt
+
+df = con.execute(sql).df()
+
+# loop por estado
+for uf in df['estado'].unique():
+    
+    df_uf = df[df['estado'] == uf].sort_values('ano_abertura')
+
+    # 🔥 filtrar TOP 5 naturezas jurídicas desse estado
+    top_naturezas = (
+        df_uf.groupby('natureza_juridica')['total']
+        .sum()
+        .nlargest(5)
+        .index
+    )
+
+    df_uf = df_uf[df_uf['natureza_juridica'].isin(top_naturezas)]
+
+    # pivot e plot
+    plot = (
+        df_uf
+        .pivot_table(
+            index='ano_abertura',
+            columns='natureza_juridica',
+            values='total',
+            aggfunc='sum'
+        )
+        .plot(
+            kind='bar',
+            stacked=False,
+            figsize=(12, 8)
+        )
+    )
+
+    plot.set_xlabel('Ano de Abertura')
+    plot.set_ylabel('Frequência')
+    plot.set_title(f'Frequência por Ano e Natureza Jurídica (Top 10) - {uf}')
+
+    plot.legend(
+        title='Natureza Jurídica',
+        bbox_to_anchor=(1.05, 1),
+        loc='upper left'
+    )
+
+    plot.set_xticklabels(plot.get_xticklabels(), rotation=45)
+
+    plot.grid(axis='y')
+    plot.figure.tight_layout()
+    plot.figure.show()
+
+
+# %%
+# gráfico de barras por total, estado, CNAE e ano de abertura por estado
+import matplotlib.pyplot as plt
+
+sql = """SELECT 
+    c.uf AS estado,
+    c.cnae_fiscal_principal AS cnae_fiscal,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+JOIN read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/empresas.parquet') AS e
+    ON c.cnpj_basico = e.cnpj_basico
+WHERE 
+    c.data_inicio_atividade IS NOT NULL
+    AND LENGTH(c.data_inicio_atividade) = 8
+GROUP BY 
+    c.uf,
+    c.cnae_fiscal_principal,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY c.uf, c.cnae_fiscal_principal, ano_abertura;"""
+
+# Executa a query uma única vez
+df = con.execute(sql).df()
+
+# loop por estado
+for uf in df['estado'].unique():
+    
+    df_uf = df[df['estado'] == uf].sort_values('ano_abertura')
+
+    # 🔥 TOP 5 CNAEs por UF (com base no total acumulado)
+    top_cnaes = (
+        df_uf.groupby('cnae_fiscal')['total']
+        .sum()
+        .nlargest(5)
+        .index
+    )
+
+    df_uf = df_uf[df_uf['cnae_fiscal'].isin(top_cnaes)]
+
+    # pivot para gráfico
+    plot = (
+        df_uf
+        .pivot_table(
+            index='ano_abertura',
+            columns='cnae_fiscal',
+            values='total',
+            aggfunc='sum'
+        )
+        .plot(
+            kind='bar',
+            stacked=False,  # 👈 lado a lado
+            figsize=(12, 8)
+        )
+    )
+
+    plot.set_xlabel('Ano de Abertura')
+    plot.set_ylabel('Frequência')
+    plot.set_title(f'Top 5 CNAEs por Ano - {uf}')
+
+    plot.legend(
+        title='CNAE',
+        bbox_to_anchor=(1.05, 1),
+        loc='upper left'
+    )
+
+    plot.set_xticklabels(plot.get_xticklabels(), rotation=45)
+
+    plot.grid(axis='y')
+    plot.figure.tight_layout()
+    plot.figure.show()
+
+# %%
