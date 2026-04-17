@@ -235,6 +235,13 @@ plot.figure.show()
 # A consulta agrupa os dados fazendo um join entre a tabela de estabelecimentos e a tabela de empresas 
 # para obter o número de empresas por situação cadastral. Depois agrupa por UF e situação cadastral, 
 # e ordena pelo total de empresas.
+# CÓDIGO DA SITUAÇÃO CADASTRAL:
+# 01 – NULA
+# 02 – ATIVA
+# 03 – SUSPENSA
+# 04 – INAPTA
+# 08 – BAIXADA
+
 sql = """SELECT 
     c.uf AS estado,
     c.situacao_cadastral,
@@ -700,4 +707,89 @@ for uf in df['estado'].unique():
     plot.figure.tight_layout()
     plot.figure.show()
 
+# %%
+# Abertura de empresas - grafico de linhas para todos os Estados, com total nos últimos 10 anos e por CNAE 
+# (filtrando os TOP 5 CNAEs de cada estado)
+import matplotlib.pyplot as plt
+
+sql = """SELECT 
+    c.uf AS estado,
+    c.cnae_fiscal_principal AS cnae_fiscal,
+    SUBSTR(cn.descricao, 1, 30) AS descricao_cnae,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d')) AS ano_abertura,
+    COUNT(*) AS total
+FROM read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/estabelecimentos.parquet') AS c
+JOIN read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/empresas.parquet') AS e
+    ON c.cnpj_basico = e.cnpj_basico
+JOIN read_parquet('/home/rogerio/Área de Trabalho/DadosAbertosCNPJ/data/parquet/cnae.parquet') AS cn
+    ON c.cnae_fiscal_principal = cn.codigo
+WHERE 
+    c.data_inicio_atividade IS NOT NULL
+    AND LENGTH(c.data_inicio_atividade) = 8
+GROUP BY 
+    c.uf,
+    c.cnae_fiscal_principal,
+    cn.descricao,
+    EXTRACT(YEAR FROM STRPTIME(c.data_inicio_atividade, '%Y%m%d'))
+ORDER BY c.uf, c.cnae_fiscal_principal, ano_abertura;"""
+
+# Executa a query uma única vez
+import matplotlib.pyplot as plt
+
+# Executa a query uma única vez
+df = con.execute(sql).df()
+
+# cria label com código + descrição
+df['cnae_label'] = df['cnae_fiscal'].astype(str) + ' - ' + df['descricao_cnae']
+
+# filtrar últimos 10 anos
+ano_max = df['ano_abertura'].max()
+df = df[df['ano_abertura'] >= ano_max - 9]
+
+# loop por estado
+for uf in df['estado'].unique():
+    
+    df_uf = df[df['estado'] == uf].sort_values('ano_abertura')
+
+    # TOP 5 CNAEs
+    top_cnaes = (
+        df_uf.groupby('cnae_label')['total']
+        .sum()
+        .nlargest(5)
+        .index
+    )
+
+    df_uf = df_uf[df_uf['cnae_label'].isin(top_cnaes)]
+
+    # pivot usando label
+    plot = (
+        df_uf
+        .pivot_table(
+            index='ano_abertura',
+            columns='cnae_label',  
+            values='total',
+            aggfunc='sum'
+        )
+        .plot(
+            kind='line',
+            stacked=False,
+            figsize=(12, 8)
+        )
+    )
+
+    plot.set_xlabel('Ano de Abertura')
+    plot.set_ylabel('Frequência')
+    plot.set_title(f'Top 5 CNAEs (últimos 10 anos) - {uf}')
+
+    plot.legend(
+        title='CNAE',
+        bbox_to_anchor=(1.05, 1),
+        loc='upper left'
+    )
+
+    plot.set_xticklabels(plot.get_xticklabels(), rotation=45)
+
+    plot.grid(axis='y')
+    plot.figure.tight_layout()
+    plot.figure.show()
 # %%
